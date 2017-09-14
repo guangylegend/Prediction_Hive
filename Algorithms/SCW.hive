@@ -1,0 +1,103 @@
+create external table if not exists epl_raw (
+  rowid int,
+  label string,
+  features array<float>
+) ROW FORMAT DELIMITED FIELDS TERMINATED BY '\t' COLLECTION ITEMS TERMINATED BY "," STORED AS TEXTFILE LOCATION '/epl/raw';
+
+create or replace view alldata
+as
+select
+  rowid, 
+  label,
+  add_bias(array(
+     concat("1:", features[1]), 
+     concat("2:", features[2]),   
+     concat("3:", features[5]),   
+     concat("4:", features[6]),   
+     concat("5:", features[11]),  
+     concat("6:", features[17])
+  )) as features
+from 
+  epl_raw;
+
+set hivevar:rand_seed=31;
+
+drop table epl_shuffled;
+create table epl_shuffled 
+as
+select rand(${rand_seed}) as rnd, * from alldata;
+
+drop table train80p;
+create table train80p as
+select * from epl_shuffled
+order by rnd ASC
+limit 1280;
+
+drop table test20p;
+create table test20p as
+select * from epl_shuffled
+order by rnd DESC
+limit 320;
+
+drop table test20p_exploded;
+create table test20p_exploded 
+as
+select 
+  rowid,
+  label,
+  extract_feature(feature) as feature,
+  extract_weight(feature) as value
+from 
+  test20p LATERAL VIEW explode(features) t AS feature;
+
+
+
+drop table model_scw;
+create table model_scw as
+select 
+ label, 
+ feature,
+ argmin_kld(weight, covar) as weight
+from 
+ (select 
+     train_multiclass_scw2(features, label) as (label, feature, weight, covar)
+  from 
+     train80p
+ ) t 
+group by label, feature;
+
+create or replace view predict_scw
+as
+select 
+  rowid, 
+  m.col0 as score, 
+  m.col1 as label
+from (
+select
+   rowid, 
+   maxrow(score, label) as m
+from (
+  select
+    t.rowid,
+    m.label,
+    sum(m.weight * t.value) as score
+  from 
+    test20p_exploded t LEFT OUTER JOIN
+    model_scw m ON (t.feature = m.feature)
+  group by
+    t.rowid, m.label
+) t1
+group by rowid
+) t2;
+
+create or replace view eval_scw as
+select 
+  t.label as actual, 
+  p.label as predicted
+from 
+  test20p t JOIN predict_scw p 
+    on (t.rowid = p.rowid);
+
+select count(1)/320 from eval_scw
+where actual = predicted;
+

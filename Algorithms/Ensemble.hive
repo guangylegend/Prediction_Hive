@@ -1,0 +1,35 @@
+create or replace view predict_ens
+as
+select 
+  rowid, 
+  m.col1 as label
+from (
+  select
+    rowid, 
+    maxrow(cnt, label) as m
+  from (
+    select
+      rowid,
+      label,
+      count(1) as cnt
+    from (
+      select * from predict_scw
+      union all
+      select * from predict_arow
+    ) t1
+    group by rowid, label
+  ) t2
+  group by rowid
+) t3;
+
+create or replace view eval_ens as
+select 
+  t.label as actual, 
+  pd.label as predicted
+from 
+  test20p t JOIN predict_ens pd 
+    on (t.rowid = pd.rowid);
+
+select count(1)/320 from eval_ens 
+where actual == predicted;
+

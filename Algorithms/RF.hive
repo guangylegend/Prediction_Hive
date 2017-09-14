@@ -1,0 +1,114 @@
+create external table if not exists epl_raw (
+  rowid int,
+  label string,
+  features array<float>
+) ROW FORMAT DELIMITED FIELDS TERMINATED BY '\t' COLLECTION ITEMS TERMINATED BY "," STORED AS TEXTFILE LOCATION '/epl/raw';
+
+create or replace view epl_new
+as
+select
+  rowid, 
+  label,
+  array(
+     features[1],
+     features[2],
+     features[5],
+     features[6],
+     features[11],
+     features[17]
+  ) as features
+from 
+  epl_raw;
+
+drop table label_mapping;
+create table label_mapping 
+as
+select
+  label,
+  rank - 1 as class
+from (
+select
+  distinct label,
+  dense_rank() over (order by label) as rank
+from 
+  epl_new
+) t;
+
+drop table alldata;
+create table alldata
+as
+select
+  rowid,
+  features,
+  t2.class as label
+from
+  epl_new t1
+  JOIN label_mapping t2 ON (t1.label = t2.label);
+
+set hivevar:rand_seed=31;
+
+drop table epl_shuffled;
+create table epl_shuffled 
+as
+select rand(${rand_seed}) as rnd, * from alldata;
+
+drop table train80p;
+create table train80p as
+select * from epl_shuffled
+order by rnd ASC
+limit 1280;
+
+drop table test20p;
+create table test20p as
+select * from epl_shuffled
+order by rnd DESC
+limit 320;
+
+drop table model_rf;
+create table model_rf 
+as
+select 
+  train_randomforest_classifier(features, label) as (model_id, model_type, pred_model, var_importance, oob_errors, oob_tests)
+from
+  train80p;
+
+set hivevar:classification=true;
+set hive.auto.convert.join=true;
+set hive.mapjoin.optimized.hashtable=false;
+
+drop table predict_rf;
+create table predict_rf
+as
+SELECT
+  rowid,
+  rf_ensemble(predict).label as label
+FROM (
+  SELECT
+    rowid, 
+    tree_predict(p.model_id, p.model_type, p.pred_model, t.features, ${classification}) as predict
+  FROM
+    model_rf p
+    LEFT OUTER JOIN
+    test20p t
+) t1
+group by
+  rowid;
+
+set hivevar:total_cnt=320;
+
+WITH t1 as (
+SELECT
+  t.rowid,
+  t.label as actual,
+  p.label as predicted
+FROM
+  predict_rf p
+  LEFT OUTER JOIN test20p t ON (t.rowid = p.rowid)
+)
+SELECT
+  count(1) / ${total_cnt}
+FROM
+  t1
+WHERE
+  actual = predicted;
+

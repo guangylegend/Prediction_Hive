@@ -1,0 +1,126 @@
+
+DROP TABLE history;
+CREATE TABLE history(year INT, hometeam STRING, awayteam STRING, homegoal INT, awaygoal INT, label INT)
+ROW FORMAT DELIMITED
+FIELDS TERMINATED BY '\t';
+LOAD DATA LOCAL INPATH '/home/cloudera/history'
+OVERWRITE INTO TABLE history;
+
+DROP TABLE teamstat;
+CREATE TABLE teamstat(year INT, team String, shot DOUBLE, yellow INT, red INT, poss DOUBLE, pass DOUBLE, aerial DOUBLE, rating DOUBLE)
+ROW FORMAT DELIMITED
+FIELDS TERMINATED BY '\t';
+LOAD DATA LOCAL INPATH '/home/cloudera/team'
+OVERWRITE INTO TABLE teamstat;
+
+DROP TABLE teamhomewin;
+CREATE TABLE teamhomewin
+AS
+SELECT year, hometeam AS team, COUNT(homegoal) AS win
+FROM history
+WHERE homegoal > awaygoal
+GROUP BY year, hometeam;
+
+DROP TABLE teamhomelose;
+CREATE TABLE teamhomelose
+AS
+SELECT year, hometeam AS team, COUNT(homegoal) AS lose
+FROM history
+WHERE homegoal < awaygoal
+GROUP BY year, hometeam;
+
+DROP TABLE teamhomedraw;
+CREATE TABLE teamhomedraw
+AS
+SELECT year, hometeam AS team, COUNT(homegoal) AS draw
+FROM history
+WHERE homegoal = awaygoal
+GROUP BY year, hometeam;
+
+DROP TABLE teamhomegoal;
+CREATE TABLE teamhomegoal
+AS
+SELECT year, hometeam AS team, SUM(homegoal) AS GF, SUM(awaygoal) AS GA, SUM(homegoal-awaygoal) AS GD
+FROM history
+GROUP BY year, hometeam;
+
+DROP TABLE teamhome;
+CREATE TABLE teamhome
+AS SELECT teamhomewin.year AS year, teamhomewin.team AS team, win, lose, draw, GF, GA, GD
+FROM teamhomewin
+JOIN teamhomelose ON teamhomewin.year = teamhomelose.year AND teamhomewin.team = teamhomelose.team
+JOIN teamhomedraw ON teamhomewin.year = teamhomedraw.year AND teamhomewin.team = teamhomedraw.team
+JOIN teamhomegoal ON teamhomewin.year = teamhomegoal.year AND teamhomewin.team = teamhomegoal.team;
+
+DROP TABLE teamawaywin;
+CREATE TABLE teamawaywin
+AS
+SELECT year, awayteam AS team, COUNT(awaygoal) AS win
+FROM history
+WHERE awaygoal > homegoal
+GROUP BY year, awayteam;
+
+DROP TABLE teamawaylose;
+CREATE TABLE teamawaylose
+AS
+SELECT year, awayteam AS team, COUNT(awaygoal) AS lose
+FROM history
+WHERE awaygoal < homegoal
+GROUP BY year, awayteam;
+
+DROP TABLE teamawaydraw;
+CREATE TABLE teamawaydraw
+AS
+SELECT year, awayteam AS team, COUNT(awaygoal) AS draw
+FROM history
+WHERE awaygoal = homegoal
+GROUP BY year, awayteam;
+
+DROP TABLE teamawaygoal;
+CREATE TABLE teamawaygoal
+AS
+SELECT year, awayteam AS team, SUM(awaygoal) AS GF, SUM(homegoal) AS GA, SUM(awaygoal-homegoal) AS GD
+FROM history
+GROUP BY year, awayteam;
+
+DROP TABLE teamaway;
+CREATE TABLE teamaway
+AS SELECT teamawaywin.year AS year, teamawaywin.team AS team, win, lose, draw, GF, GA, GD
+FROM teamawaywin
+JOIN teamawaylose ON teamawaywin.year = teamawaylose.year AND teamawaywin.team = teamawaylose.team
+JOIN teamawaydraw ON teamawaywin.year = teamawaydraw.year AND teamawaywin.team = teamawaydraw.team
+JOIN teamawaygoal ON teamawaywin.year = teamawaygoal.year AND teamawaywin.team = teamawaygoal.team;
+
+CREATE EXTERNAL TABLE IF NOT EXISTS featureall(year INT, hometeam String, awayteam String,
+homeshot INT, homeposs DOUBLE, homepass DOUBLE, homeae DOUBLE,
+awayshot INT, awayposs DOUBLE, awaypass DOUBLE, awayae DOUBLE,
+homewin INT, homelose INT, homedraw INT, homeGF INT, homeGA INT, homeGD INT,
+awaywin INT, awaylose INT, awaydraw INT, awayGF INT, awayGA INT, awayGD INT,
+label INT)
+ROW FORMAT DELIMITED
+FIELDS TERMINATED BY '\t'
+STORED AS TEXTFILE
+LOCATION '/user/cloudera/feature';
+
+INSERT INTO featureall
+SELECT history.year, hometeam, awayteam, 
+teamstat1.shot AS homeshot, teamstat1.poss AS homeposs, teamstat1.pass AS homepass, teamstat1.aerial AS homeae,
+teamstat2.shot AS awayshot, teamstat2.poss AS awayposs, teamstat2.pass AS awaypass, teamstat2.aerial AS awayae,
+teamhome.win AS homewin, teamhome.lose AS homelose, teamhome.draw AS homedraw, teamhome.GF AS homeGF, teamhome.GA AS homeGA, teamhome.GD AS homeGD,
+teamaway.win AS awaywin, teamaway.lose AS awaylose, teamaway.draw AS awaydraw, teamaway.GF AS awayGF, teamaway.GA AS awayGA, teamaway.GD AS awayGD,
+label
+FROM history
+JOIN teamstat AS teamstat1 ON history.year = teamstat1.year+1 AND history.hometeam = teamstat1.team
+JOIN teamstat AS teamstat2 ON history.year = teamstat2.year+1 AND history.awayteam = teamstat2.team
+JOIN teamhome ON history.year = teamhome.year+1 AND history.hometeam = teamhome.team
+JOIN teamaway ON history.year = teamaway.year+1 AND history.awayteam = teamaway.team;
+
+
+
+
+
+
+
+
+
+
