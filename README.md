@@ -1,5 +1,7 @@
 This is the code for prediction of football match result using machine learning on Hive.
 
+Please read attached pdf for full paper description.
+
 ## Prediction
 
 ### Environment:
