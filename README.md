@@ -1,13 +1,15 @@
 This is the code for prediction of football match result using machine learning on Hive.
 
-Environment:
-Java: 1.7
-Hadoop: 2.x
-Hivemall: 0.4.2-rc.2.
+## Prediction
 
-The code is seperated into two parts after ETL.
-First part: feature extraction and listing.
-File: Generate.hive Gen.jar
+### Environment:
+- Java: 1.7 
+- Hadoop: 2.x 
+- Hivemall: 0.4.2-rc.2. 
+
+The code is seperated into two parts after ETL. 
+First part: feature extraction and listing. 
+File: Generate.hive Gen.jar 
 Description:
 Generate.hive gets input from raw data, extracting the features we may use,
 like the total win, home win, away win, possession and so on.
