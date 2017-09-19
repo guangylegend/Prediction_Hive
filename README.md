@@ -34,8 +34,10 @@ more complex evaluation.
 ### Usage:
 For *.hive file, type
 > source *.hive in Hive to run.
+
 For *.jar file, type
 > hadoop jar *.jar <params> to run.
+  
 Here for Gen.jar, <params> are <input_file> <output_dir>.
 
 ### Data sources:
