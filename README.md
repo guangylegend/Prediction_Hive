@@ -1,6 +1,8 @@
-This is the fianl project code written in Hive in addition with Hivemall.
-Environment: 
-Hive: Quickstart VM included.
+This is the code for prediction of football match result using machine learning on Hive.
+
+Environment:
+Java: 1.7
+Hadoop: 2.x
 Hivemall: 0.4.2-rc.2.
 
 The code is seperated into two parts after ETL.
@@ -33,9 +35,7 @@ Data sources:
 All the data are crawled and extracted from these two sources.
 1. https://github.com/openfootball/eng-england
 2. https://www.whoscored.com/Regions/252/Tournaments/2/England-Premier-League
-Input data can be found at: https://drive.google.com/open?id=0B9nM4VUJJoq8T1VaWFJ3ak54U28
 
 Features extracted are listed in the file "Feature list". Change the indexes
-written in each algorithms to try lots of combinations of features. Some screen
-shots of results are attached, as the proof of successful running.
+written in each algorithms to try lots of combinations of features.
 
